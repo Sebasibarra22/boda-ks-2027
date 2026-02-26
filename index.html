@@ -1315,13 +1315,13 @@ const QUESTIONS = [
 
 // MERCH CATALOG
 const MERCH = [
-  { pts: 50,  prize: "Sticker oficial K&S 💌" },
-  { pts: 100, prize: "Shot personalizado de la boda 🥂" },
-  { pts: 200, prize: "Llavero con la fecha K&S 🗝️" },
-  { pts: 350, prize: "Vaso de cristal grabado 🥃" },
-  { pts: 500, prize: "Tote bag oficial de la boda 👜" },
-  { pts: 700, prize: "Playera edición especial K&S 👕" },
-  { pts: 900, prize: "🍾 Botella firmada por los novios" },
+  { pts: 200,  prize: "Llavero de Milan 🗝️" },
+  { pts: 300, prize: "Vela Aromatica 🕯️" },
+  { pts: 400, prize: "Taza Decorativa 🗝️" },
+  { pts: 500, prize: "Termo Oficial 🥃" },
+  { pts: 600, prize: "Tote bag oficial de la boda 👜" },
+  { pts: 700, prize: "Playera edición especial 👕" },
+  { pts: 900, prize: "🍾 Botella" },
 ];
 
 // STATE
@@ -1520,8 +1520,8 @@ function endGame() {
   // Title
   let title, subtitle;
   if (state.score >= 900) { title = '¡Leyenda de la Boda! 🏆'; subtitle = 'Conoces a los novios mejor que ellos mismos. Mereces todo el merch.'; }
-  else if (state.score >= 600) { title = '¡Gran Conocedor! ⭐'; subtitle = 'Definitivamente has convivido mucho con Karina y Sebastián.'; }
-  else if (state.score >= 350) { title = '¡Buen Resultado! 🎉'; subtitle = 'Conoces bastante bien a la pareja. ¡Sigue disfrutando la noche!'; }
+  else if (state.score >= 700) { title = '¡Gran Conocedor! ⭐'; subtitle = 'Definitivamente has convivido mucho con Karina y Sebastián.'; }
+  else if (state.score >= 500) { title = '¡Buen Resultado! 🎉'; subtitle = 'Conoces bastante bien a la pareja. ¡Sigue disfrutando la noche!'; }
   else { title = '¡Participaste! 💫'; subtitle = 'Lo importante es celebrar el amor de Karina y Sebastián esta noche.'; }
 
   document.getElementById('result-title').textContent = title;
@@ -1716,8 +1716,8 @@ async function endGameLive() {
   document.getElementById('final-score').textContent = state.score;
   let title, subtitle;
   if (state.score >= 900) { title = '¡Leyenda de la Boda! 🏆'; subtitle = 'Conoces a los novios mejor que ellos mismos.'; }
-  else if (state.score >= 600) { title = '¡Gran Conocedor! ⭐'; subtitle = 'Definitivamente has convivido mucho con Karina y Sebastián.'; }
-  else if (state.score >= 350) { title = '¡Buen Resultado! 🎉'; subtitle = 'Conoces bastante bien a la pareja.'; }
+  else if (state.score >= 700) { title = '¡Gran Conocedor! ⭐'; subtitle = 'Definitivamente has convivido mucho con Karina y Sebastián.'; }
+  else if (state.score >= 500) { title = '¡Buen Resultado! 🎉'; subtitle = 'Conoces bastante bien a la pareja.'; }
   else { title = '¡Participaste! 💫'; subtitle = 'Lo importante es celebrar el amor de Karina y Sebastián.'; }
   document.getElementById('result-title').textContent = title;
   document.getElementById('result-subtitle').textContent = subtitle;
