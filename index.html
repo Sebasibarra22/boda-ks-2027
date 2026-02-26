@@ -1,0 +1,1969 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Karina & Sebastian – Trivia de Boda</title>
+<script type="module">
+  // ===== FIREBASE SETUP =====
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, getDocs, orderBy, query, limit, onSnapshot, doc, setDoc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCrGzg6x9K9WhiwQMueeX2vXE0ofinEVOw",
+    authDomain: "boda-ks-2027.firebaseapp.com",
+    projectId: "boda-ks-2027",
+    storageBucket: "boda-ks-2027.firebasestorage.app",
+    messagingSenderId: "268655149066",
+    appId: "1:268655149066:web:4d70330867d8d23a909ff3"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // Expose Firebase functions to global scope for use in main script
+  window.fbSaveScore = async function(name, score) {
+    try {
+      await addDoc(collection(db, "leaderboard"), {
+        name: name,
+        score: score,
+        ts: Date.now()
+      });
+    } catch(e) { console.error("Error saving score:", e); }
+  };
+
+  window.fbGetLeaderboard = async function() {
+    try {
+      const q = query(collection(db, "leaderboard"), orderBy("score", "desc"), limit(20));
+      const snap = await getDocs(q);
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch(e) { console.error("Error getting leaderboard:", e); return []; }
+  };
+
+  window.fbClearLeaderboard = async function() {
+    try {
+      const snap = await getDocs(collection(db, "leaderboard"));
+      const dels = snap.docs.map(d => deleteDoc(doc(db, "leaderboard", d.id)));
+      await Promise.all(dels);
+    } catch(e) { console.error("Error clearing leaderboard:", e); }
+  };
+
+  window.fbListenLeaderboard = function(callback) {
+    const q = query(collection(db, "leaderboard"), orderBy("score", "desc"), limit(20));
+    return onSnapshot(q, (snap) => {
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      callback(data);
+    });
+  };
+
+  window.fbSaveQuestions = async function(questions) {
+    try {
+      await setDoc(doc(db, "config", "questions"), { data: JSON.stringify(questions) });
+    } catch(e) { console.error(e); }
+  };
+
+  window.fbGetQuestions = async function() {
+    try {
+      const snap = await getDoc(doc(db, "config", "questions"));
+      if (snap.exists()) return JSON.parse(snap.data().data);
+    } catch(e) { console.error(e); }
+    return null;
+  };
+
+  window.fbSaveMerch = async function(merch) {
+    try {
+      await setDoc(doc(db, "config", "merch"), { data: JSON.stringify(merch) });
+    } catch(e) { console.error(e); }
+  };
+
+  window.fbGetMerch = async function() {
+    try {
+      const snap = await getDoc(doc(db, "config", "merch"));
+      if (snap.exists()) return JSON.parse(snap.data().data);
+    } catch(e) { console.error(e); }
+    return null;
+  };
+
+  window.firebaseReady = true;
+  console.log("Firebase ready ✅");
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #C9A84C;
+    --gold-light: #E8CC7A;
+    --gold-pale: #F5E6B8;
+    --black: #0A0A0A;
+    --dark: #111111;
+    --dark2: #1A1A1A;
+    --dark3: #222222;
+    --white: #FAF7F0;
+    --text-muted: #888;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: 'Montserrat', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* BACKGROUND TEXTURE */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: 
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(201,168,76,0.15) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 100%, rgba(201,168,76,0.08) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ORNAMENTAL LINES */
+  .ornament {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: center;
+    margin: 8px 0;
+  }
+  .ornament::before, .ornament::after {
+    content: '';
+    flex: 1;
+    max-width: 60px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold));
+  }
+  .ornament::after {
+    background: linear-gradient(90deg, var(--gold), transparent);
+  }
+  .ornament span {
+    color: var(--gold);
+    font-size: 10px;
+    letter-spacing: 3px;
+  }
+
+  /* SCREENS */
+  .screen {
+    display: none;
+    min-height: 100vh;
+    position: relative;
+    z-index: 1;
+    padding: 24px 20px;
+    animation: fadeIn 0.5s ease;
+  }
+  .screen.active { display: flex; flex-direction: column; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* WELCOME SCREEN */
+  #screen-welcome {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 0;
+  }
+
+  .wedding-date {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 10px;
+    letter-spacing: 5px;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  .couple-names {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(52px, 14vw, 80px);
+    font-weight: 300;
+    line-height: 0.9;
+    color: var(--white);
+    letter-spacing: -1px;
+    margin-bottom: 8px;
+  }
+  .couple-names .amp {
+    font-style: italic;
+    color: var(--gold);
+    font-size: 0.8em;
+    display: block;
+    line-height: 1.2;
+  }
+
+  .tagline {
+    font-size: 10px;
+    letter-spacing: 4px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin: 20px 0 36px;
+  }
+
+  .gold-divider {
+    width: 1px;
+    height: 50px;
+    background: linear-gradient(180deg, transparent, var(--gold), transparent);
+    margin: 20px auto;
+  }
+
+  .welcome-subtitle {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px;
+    font-style: italic;
+    color: var(--gold-pale);
+    margin-bottom: 8px;
+  }
+
+  .welcome-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    line-height: 1.7;
+    max-width: 300px;
+    margin: 0 auto 32px;
+  }
+
+  /* NAME INPUT */
+  .input-group {
+    width: 100%;
+    max-width: 320px;
+    margin: 0 auto 24px;
+  }
+
+  .input-label {
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--gold);
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 10px;
+    text-align: left;
+  }
+
+  .gold-input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid rgba(201,168,76,0.4);
+    color: var(--white);
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    font-weight: 300;
+    padding: 8px 0;
+    outline: none;
+    transition: border-color 0.3s;
+    text-align: center;
+    letter-spacing: 2px;
+  }
+  .gold-input::placeholder { color: rgba(201,168,76,0.3); font-style: italic; }
+  .gold-input:focus { border-bottom-color: var(--gold); }
+
+  /* BUTTONS */
+  .btn-primary {
+    background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 50%, var(--gold) 100%);
+    background-size: 200% 100%;
+    color: var(--black);
+    border: none;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    padding: 16px 40px;
+    cursor: pointer;
+    transition: all 0.3s;
+    width: 100%;
+    max-width: 280px;
+  }
+  .btn-primary:hover { background-position: right; transform: translateY(-1px); box-shadow: 0 8px 30px rgba(201,168,76,0.3); }
+  .btn-primary:active { transform: translateY(0); }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--gold);
+    border: 1px solid rgba(201,168,76,0.5);
+    font-family: 'Montserrat', sans-serif;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 12px 32px;
+    cursor: pointer;
+    transition: all 0.3s;
+    width: 100%;
+    max-width: 280px;
+  }
+  .btn-outline:hover { background: rgba(201,168,76,0.08); border-color: var(--gold); }
+
+  /* QUIZ SCREEN */
+  #screen-quiz {
+    gap: 0;
+  }
+
+  .quiz-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(201,168,76,0.15);
+    margin-bottom: 24px;
+  }
+
+  .quiz-player {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+  }
+  .quiz-player span { color: var(--gold); display: block; font-size: 14px; letter-spacing: 2px; }
+
+  .score-badge {
+    text-align: right;
+  }
+  .score-badge .pts-number {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 36px;
+    font-weight: 300;
+    color: var(--gold);
+    line-height: 1;
+  }
+  .score-badge .pts-label {
+    font-size: 8px;
+    letter-spacing: 3px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  /* PROGRESS */
+  .progress-wrap {
+    margin-bottom: 28px;
+  }
+  .progress-info {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .progress-info span {
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+  .progress-bar {
+    height: 1px;
+    background: rgba(201,168,76,0.15);
+    position: relative;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    transition: width 0.5s ease;
+  }
+
+  /* CATEGORY TAG */
+  .category-tag {
+    font-size: 8px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--gold);
+    border: 1px solid rgba(201,168,76,0.3);
+    display: inline-block;
+    padding: 4px 12px;
+    margin-bottom: 16px;
+  }
+
+  /* QUESTION */
+  .question-text {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(20px, 5vw, 26px);
+    font-weight: 400;
+    color: var(--white);
+    line-height: 1.35;
+    margin-bottom: 28px;
+    min-height: 80px;
+  }
+
+  /* TIMER */
+  .timer-ring {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+  .timer-svg { width: 64px; height: 64px; transform: rotate(-90deg); }
+  .timer-bg { fill: none; stroke: rgba(201,168,76,0.1); stroke-width: 3; }
+  .timer-arc { fill: none; stroke: var(--gold); stroke-width: 3; stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
+  .timer-text {
+    position: absolute;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    color: var(--gold);
+    font-weight: 300;
+  }
+
+  /* OPTIONS */
+  .options-grid {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .option-btn {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(201,168,76,0.2);
+    color: var(--white);
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.5px;
+    padding: 16px 20px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.25s;
+    position: relative;
+    overflow: hidden;
+    line-height: 1.4;
+  }
+  .option-btn::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 2px;
+    background: var(--gold);
+    transform: scaleY(0);
+    transition: transform 0.25s;
+  }
+  .option-btn:hover:not(:disabled) {
+    background: rgba(201,168,76,0.06);
+    border-color: rgba(201,168,76,0.5);
+  }
+  .option-btn:hover:not(:disabled)::before { transform: scaleY(1); }
+  .option-btn.correct {
+    background: rgba(201,168,76,0.15);
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+  .option-btn.correct::before { transform: scaleY(1); background: var(--gold); }
+  .option-btn.wrong {
+    background: rgba(200,50,50,0.1);
+    border-color: rgba(200,50,50,0.4);
+    color: rgba(255,100,100,0.8);
+  }
+  .option-btn:disabled { cursor: default; }
+
+  /* FEEDBACK */
+  .feedback-box {
+    padding: 14px 18px;
+    border-left: 2px solid var(--gold);
+    background: rgba(201,168,76,0.06);
+    margin-bottom: 20px;
+    display: none;
+    animation: fadeIn 0.3s ease;
+  }
+  .feedback-box .pts-gained {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px;
+    color: var(--gold);
+    margin-bottom: 4px;
+  }
+  .feedback-box .feedback-text {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  /* RESULTS SCREEN */
+  #screen-results {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 0;
+  }
+
+  .results-crown {
+    font-size: 48px;
+    margin-bottom: 16px;
+    animation: pulse 2s ease infinite;
+  }
+  @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.05)} }
+
+  .final-score-num {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 80px;
+    font-weight: 300;
+    color: var(--gold);
+    line-height: 1;
+  }
+  .final-score-label {
+    font-size: 9px;
+    letter-spacing: 5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 32px;
+  }
+
+  .result-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 28px;
+    font-style: italic;
+    color: var(--white);
+    margin-bottom: 8px;
+  }
+
+  .result-subtitle {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    line-height: 1.7;
+    max-width: 300px;
+    margin: 0 auto 32px;
+  }
+
+  /* MERCH TABLE */
+  .merch-title {
+    font-size: 9px;
+    letter-spacing: 4px;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    text-align: left;
+    width: 100%;
+    max-width: 340px;
+  }
+
+  .merch-table {
+    width: 100%;
+    max-width: 340px;
+    border-collapse: collapse;
+    margin-bottom: 32px;
+    text-align: left;
+  }
+  .merch-table th {
+    font-size: 8px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(201,168,76,0.15);
+    font-weight: 400;
+  }
+  .merch-table td {
+    font-size: 12px;
+    padding: 12px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    color: var(--white);
+  }
+  .merch-table tr.unlocked td { color: var(--gold); }
+  .merch-table tr.unlocked td:first-child { font-weight: 600; }
+  .merch-table .pts-col {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px;
+    color: var(--gold);
+    white-space: nowrap;
+  }
+  .merch-table tr.unlocked .pts-col { font-weight: 600; }
+  .lock-icon { opacity: 0.25; font-size: 10px; }
+  .check-icon { color: var(--gold); font-size: 14px; }
+
+  .canje-note {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    line-height: 1.6;
+    max-width: 300px;
+    text-align: center;
+    border: 1px solid rgba(201,168,76,0.15);
+    padding: 16px;
+    margin-bottom: 28px;
+  }
+  .canje-note strong { color: var(--gold); font-weight: 500; }
+
+  /* LEADERBOARD SCREEN */
+  #screen-leaderboard {
+    gap: 0;
+  }
+  .lb-header {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  .lb-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 32px;
+    font-style: italic;
+    color: var(--white);
+    margin: 8px 0 4px;
+  }
+  .lb-subtitle { font-size: 10px; letter-spacing: 2px; color: var(--text-muted); }
+
+  .lb-list { width: 100%; }
+  .lb-entry {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    animation: fadeIn 0.4s ease both;
+  }
+  .lb-rank {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 28px;
+    font-weight: 300;
+    color: rgba(201,168,76,0.3);
+    width: 32px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .lb-entry:nth-child(1) .lb-rank { color: var(--gold); font-size: 32px; }
+  .lb-entry:nth-child(2) .lb-rank { color: var(--gold-pale); font-size: 30px; }
+  .lb-name {
+    flex: 1;
+    font-size: 14px;
+    letter-spacing: 1px;
+    color: var(--white);
+  }
+  .lb-pts {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 26px;
+    color: var(--gold);
+    font-weight: 300;
+  }
+  .lb-pts-label { font-size: 8px; letter-spacing: 2px; color: var(--text-muted); display: block; text-align: right; margin-top: -2px; }
+
+  .back-btn {
+    background: transparent;
+    border: none;
+    color: var(--gold);
+    font-family: 'Montserrat', sans-serif;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 12px 0;
+    margin-top: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .back-btn::before { content: '←'; font-size: 14px; }
+
+  /* FLOATING PARTICLES */
+  .particles { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+  .particle {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    background: var(--gold);
+    border-radius: 50%;
+    animation: float linear infinite;
+    opacity: 0;
+  }
+  @keyframes float {
+    0% { opacity: 0; transform: translateY(100vh) translateX(0); }
+    10% { opacity: 0.6; }
+    90% { opacity: 0.2; }
+    100% { opacity: 0; transform: translateY(-10vh) translateX(var(--drift)); }
+  }
+
+  /* ===== ADMIN STYLES ===== */
+  #screen-admin-login {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 0;
+  }
+  .admin-badge {
+    font-size: 9px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--gold);
+    border: 1px solid rgba(201,168,76,0.3);
+    padding: 5px 14px;
+    display: inline-block;
+    margin-bottom: 20px;
+  }
+  .admin-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 30px;
+    font-style: italic;
+    color: var(--white);
+    margin-bottom: 6px;
+  }
+  .admin-subtitle {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    margin-bottom: 36px;
+  }
+  .login-error {
+    font-size: 11px;
+    color: #e55;
+    letter-spacing: 1px;
+    margin-top: 10px;
+    min-height: 18px;
+    display: none;
+  }
+
+  /* ADMIN PANEL */
+  #screen-admin {
+    gap: 0;
+    padding-bottom: 60px;
+  }
+  .admin-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(201,168,76,0.2);
+    margin-bottom: 24px;
+  }
+  .admin-header-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    font-style: italic;
+    color: var(--gold);
+  }
+  .admin-logout {
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    cursor: pointer;
+    background: none;
+    border: none;
+    text-transform: uppercase;
+  }
+  .admin-logout:hover { color: var(--gold); }
+
+  .admin-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 24px;
+    border-bottom: 1px solid rgba(201,168,76,0.15);
+  }
+  .admin-tab {
+    font-size: 9px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 10px 16px;
+    cursor: pointer;
+    border: none;
+    background: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.2s;
+  }
+  .admin-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+  .admin-tab:hover:not(.active) { color: var(--white); }
+
+  .admin-section { display: none; }
+  .admin-section.active { display: block; }
+
+  .section-label {
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  /* QUESTION CARDS */
+  .q-card {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(201,168,76,0.12);
+    padding: 16px;
+    margin-bottom: 12px;
+    position: relative;
+  }
+  .q-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .q-card-num {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    color: rgba(201,168,76,0.3);
+    font-weight: 300;
+  }
+  .q-card-actions { display: flex; gap: 8px; }
+  .btn-edit, .btn-delete {
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 5px 12px;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+  }
+  .btn-edit { background: rgba(201,168,76,0.1); color: var(--gold); border: 1px solid rgba(201,168,76,0.3); }
+  .btn-edit:hover { background: rgba(201,168,76,0.2); }
+  .btn-delete { background: rgba(200,50,50,0.1); color: #e88; border: 1px solid rgba(200,50,50,0.3); }
+  .btn-delete:hover { background: rgba(200,50,50,0.2); }
+
+  .q-preview-text {
+    font-size: 13px;
+    color: var(--white);
+    line-height: 1.4;
+    margin-bottom: 8px;
+  }
+  .q-preview-meta {
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+  }
+  .q-preview-meta span { color: var(--gold); }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 100;
+    overflow-y: auto;
+    padding: 20px;
+  }
+  .modal-overlay.active { display: flex; align-items: flex-start; justify-content: center; }
+  .modal-box {
+    background: var(--dark2);
+    border: 1px solid rgba(201,168,76,0.25);
+    width: 100%;
+    max-width: 480px;
+    padding: 24px;
+    margin: auto;
+    animation: fadeIn 0.3s ease;
+  }
+  .modal-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    font-style: italic;
+    color: var(--gold);
+    margin-bottom: 20px;
+  }
+
+  .form-field {
+    margin-bottom: 18px;
+  }
+  .form-label {
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--gold);
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 8px;
+  }
+  .form-input, .form-textarea, .form-select {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(201,168,76,0.2);
+    color: var(--white);
+    font-family: 'Montserrat', sans-serif;
+    font-size: 13px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color 0.2s;
+    border-radius: 0;
+    -webkit-appearance: none;
+  }
+  .form-input:focus, .form-textarea:focus, .form-select:focus { border-color: var(--gold); }
+  .form-textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
+  .form-select option { background: var(--dark2); }
+
+  .options-edit-grid { display: grid; gap: 8px; }
+  .option-edit-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .option-edit-row input[type="radio"] { accent-color: var(--gold); flex-shrink: 0; width: 16px; height: 16px; }
+  .option-edit-row .form-input { flex: 1; }
+  .option-correct-label {
+    font-size: 8px;
+    color: var(--gold);
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+
+  .modal-actions { display: flex; gap: 10px; margin-top: 24px; }
+  .modal-actions .btn-primary { max-width: none; flex: 1; }
+  .modal-actions .btn-outline { max-width: none; flex: 1; }
+
+  /* MERCH EDITOR */
+  .merch-edit-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(201,168,76,0.12);
+    padding: 12px 14px;
+    margin-bottom: 8px;
+  }
+  .merch-pts-input {
+    width: 72px;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid rgba(201,168,76,0.4);
+    color: var(--gold);
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    font-weight: 300;
+    padding: 2px 0;
+    outline: none;
+    text-align: center;
+  }
+  .merch-pts-input:focus { border-bottom-color: var(--gold); }
+  .merch-prize-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    color: var(--white);
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    padding: 4px 0;
+    outline: none;
+  }
+  .merch-prize-input:focus { border-bottom-color: rgba(201,168,76,0.5); }
+  .btn-merch-delete {
+    background: none;
+    border: none;
+    color: rgba(200,50,50,0.5);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px;
+    transition: color 0.2s;
+  }
+  .btn-merch-delete:hover { color: #e88; }
+
+  .btn-add {
+    background: rgba(201,168,76,0.06);
+    border: 1px dashed rgba(201,168,76,0.3);
+    color: var(--gold);
+    font-family: 'Montserrat', sans-serif;
+    font-size: 9px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 12px;
+    cursor: pointer;
+    width: 100%;
+    transition: all 0.2s;
+    margin-top: 4px;
+  }
+  .btn-add:hover { background: rgba(201,168,76,0.12); }
+
+  .save-banner {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--gold);
+    color: var(--black);
+    text-align: center;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 14px;
+    z-index: 50;
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
+  }
+  .save-banner.show { transform: translateY(0); }
+
+  /* Admin access button (hidden, bottom corner) */
+  .admin-access-btn {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    background: rgba(201,168,76,0.08);
+    border: 1px solid rgba(201,168,76,0.2);
+    color: rgba(201,168,76,0.4);
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 8px 12px;
+    cursor: pointer;
+    z-index: 10;
+    transition: all 0.3s;
+  }
+  .admin-access-btn:hover { color: var(--gold); border-color: rgba(201,168,76,0.5); }
+</style>
+</head>
+<body>
+
+<!-- Floating particles -->
+<div class="particles" id="particles"></div>
+
+<!-- ===== WELCOME SCREEN ===== -->
+<div class="screen active" id="screen-welcome">
+  <div class="wedding-date">16 · Abril · 2027</div>
+  <div class="couple-names">
+    Karina<span class="amp">&amp;</span>Sebastian
+  </div>
+  <div class="ornament"><span>✦</span></div>
+  <div class="tagline">Trivia Oficial de la Boda</div>
+
+  <div class="gold-divider"></div>
+
+  <div class="welcome-subtitle">¿Cuánto los conoces?</div>
+  <div class="welcome-desc">
+    Responde preguntas sobre la pareja, acumula puntos y canjéalos por Merch Oficial de la Boda esta noche.
+  </div>
+
+  <div class="input-group">
+    <label class="input-label" for="player-name">Tu nombre</label>
+    <input type="text" id="player-name" class="gold-input" placeholder="Escribe tu nombre" maxlength="24" />
+  </div>
+
+  <button class="btn-primary" onclick="startGame()" id="start-btn">Comenzar Trivia</button>
+
+  <div style="margin-top: 20px;">
+    <button class="btn-outline" onclick="showLeaderboard()">Ver Tabla de Puntos</button>
+  </div>
+
+  <div style="margin-top: 32px; font-size: 9px; color: rgba(255,255,255,0.15); letter-spacing: 2px;">K &amp; S · 2027</div>
+</div>
+
+<!-- ===== QUIZ SCREEN ===== -->
+<div class="screen" id="screen-quiz">
+  <div class="quiz-header">
+    <div class="quiz-player">
+      Jugando como
+      <span id="display-name">—</span>
+    </div>
+    <div class="score-badge">
+      <div class="pts-number" id="current-score">0</div>
+      <div class="pts-label">puntos</div>
+    </div>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-info">
+      <span id="q-counter">Pregunta 1 de 12</span>
+      <span id="cat-label">—</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+    </div>
+  </div>
+
+  <div class="category-tag" id="category-tag">Categoría</div>
+
+  <div class="question-text" id="question-text">Cargando...</div>
+
+  <div class="timer-ring">
+    <svg class="timer-svg" viewBox="0 0 64 64">
+      <circle class="timer-bg" cx="32" cy="32" r="28"/>
+      <circle class="timer-arc" id="timer-arc" cx="32" cy="32" r="28"
+        stroke-dasharray="175.9" stroke-dashoffset="0"/>
+    </svg>
+    <div class="timer-text" id="timer-text">15</div>
+  </div>
+
+  <div class="options-grid" id="options-grid"></div>
+
+  <div class="feedback-box" id="feedback-box">
+    <div class="pts-gained" id="feedback-pts">+100 puntos</div>
+    <div class="feedback-text" id="feedback-text">¡Correcto!</div>
+  </div>
+
+  <button class="btn-primary" id="next-btn" onclick="nextQuestion()" style="display:none; margin:0 auto;">
+    Siguiente →
+  </button>
+</div>
+
+<!-- ===== RESULTS SCREEN ===== -->
+<div class="screen" id="screen-results">
+  <div class="results-crown">👑</div>
+
+  <div class="wedding-date">Karina &amp; Sebastian · 2027</div>
+
+  <div class="final-score-num" id="final-score">0</div>
+  <div class="final-score-label">puntos obtenidos</div>
+
+  <div class="result-title" id="result-title">¡Excelente!</div>
+  <div class="result-subtitle" id="result-subtitle">Conoces muy bien a los novios.</div>
+
+  <div class="ornament"><span>✦</span></div>
+
+  <div class="merch-title">🛍 Tienda Oficial K&amp;S</div>
+  <table class="merch-table" id="merch-table">
+    <thead>
+      <tr>
+        <th>Puntos</th>
+        <th>Premio</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="merch-body"></tbody>
+  </table>
+
+  <div class="canje-note">
+    Muestra esta pantalla en la<br>
+    <strong>Mesa de Canje K&amp;S</strong><br>
+    para reclamar tu premio esta noche.
+  </div>
+
+  <button class="btn-primary" onclick="showLeaderboard()" style="margin-bottom:12px">Ver Tabla de Campeones</button>
+  <button class="btn-outline" onclick="restartGame()">Jugar de Nuevo</button>
+</div>
+
+<!-- ===== ADMIN LOGIN SCREEN ===== -->
+<div class="screen" id="screen-admin-login">
+  <div style="margin:auto;width:100%;max-width:360px;text-align:center;">
+  <div class="admin-badge">⚙ Panel de Administrador</div>
+  <div class="admin-title">Acceso Restringido</div>
+  <div class="admin-subtitle">Solo para organizadores de la boda</div>
+  <div class="ornament"><span>✦</span></div>
+  <div style="height:24px;"></div>
+  <div class="input-group">
+    <label class="input-label" for="admin-user">Usuario</label>
+    <input type="text" id="admin-user" class="gold-input" placeholder="usuario" autocomplete="off"/>
+  </div>
+  <div class="input-group">
+    <label class="input-label" for="admin-pass">Contraseña</label>
+    <input type="password" id="admin-pass" class="gold-input" placeholder="••••••••" autocomplete="off"/>
+  </div>
+  <div class="login-error" id="login-error">Usuario o contraseña incorrectos</div>
+  <div style="height:20px;"></div>
+  <button class="btn-primary" onclick="adminLogin()">Ingresar al Panel</button>
+  <div style="margin-top:14px;">
+    <button class="btn-outline" onclick="goHome()">← Volver al inicio</button>
+  </div>
+  </div>
+</div>
+
+<!-- ===== ADMIN PANEL SCREEN ===== -->
+<div class="screen" id="screen-admin">
+  <div class="admin-header">
+    <div class="admin-header-title">⚙ Panel Admin K&S</div>
+    <button class="admin-logout" onclick="adminLogout()">Salir ×</button>
+  </div>
+
+  <div class="admin-tabs">
+    <button class="admin-tab active" id="atab-questions" onclick="switchTab('tab-questions','atab-questions')">Preguntas</button>
+    <button class="admin-tab" id="atab-merch" onclick="switchTab('tab-merch','atab-merch')">Premios</button>
+    <button class="admin-tab" id="atab-ranking" onclick="switchTab('tab-ranking','atab-ranking')">Ranking</button>
+  </div>
+
+  <!-- TAB: PREGUNTAS -->
+  <div class="admin-section active" id="tab-questions">
+    <div class="section-label">Preguntas activas</div>
+    <div id="questions-list"></div>
+    <button class="btn-add" onclick="openQuestionModal(-1)">+ Agregar Nueva Pregunta</button>
+  </div>
+
+  <!-- TAB: MERCH -->
+  <div class="admin-section" id="tab-merch">
+    <div class="section-label">Premios y Puntos de Canje</div>
+    <p style="font-size:10px;color:var(--text-muted);letter-spacing:1px;margin-bottom:16px;line-height:1.6;">Edita los puntos necesarios y el nombre de cada premio. El círculo ● en el radio indica la respuesta correcta.</p>
+    <div id="merch-edit-list"></div>
+    <button class="btn-add" onclick="addMerchRow()">+ Agregar Premio</button>
+    <div style="margin-top:20px;">
+      <button class="btn-primary" style="max-width:none;width:100%;" onclick="saveMerch()">Guardar Premios</button>
+    </div>
+  </div>
+
+  <!-- TAB: RANKING -->
+  <div class="admin-section" id="tab-ranking">
+    <div class="section-label">Ranking de la noche</div>
+    <div id="admin-lb-list"></div>
+    <div style="margin-top:24px;">
+      <button class="btn-outline" style="max-width:none;width:100%;color:#e88;border-color:rgba(200,50,50,0.4);" onclick="clearLeaderboard()">🗑 Borrar todos los puntajes</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: EDIT / ADD QUESTION -->
+<div class="modal-overlay" id="question-modal">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title">Nueva Pregunta</div>
+    <div class="form-field">
+      <label class="form-label">Categoría</label>
+      <input type="text" class="form-input" id="f-category" placeholder="Ej: Karina, Sebastián, La Pareja"/>
+    </div>
+    <div class="form-field">
+      <label class="form-label">Emoji de categoría</label>
+      <input type="text" class="form-input" id="f-emoji" placeholder="Ej: 💜" maxlength="4" style="max-width:100px;"/>
+    </div>
+    <div class="form-field">
+      <label class="form-label">Pregunta</label>
+      <textarea class="form-textarea" id="f-question" placeholder="Escribe la pregunta aquí..."></textarea>
+    </div>
+    <div class="form-field">
+      <label class="form-label">Opciones — marca ● la respuesta correcta</label>
+      <div class="options-edit-grid">
+        <div class="option-edit-row"><input type="radio" name="correct-opt" value="0" checked/><input type="text" class="form-input" id="opt-0" placeholder="Opción A"/></div>
+        <div class="option-edit-row"><input type="radio" name="correct-opt" value="1"/><input type="text" class="form-input" id="opt-1" placeholder="Opción B"/></div>
+        <div class="option-edit-row"><input type="radio" name="correct-opt" value="2"/><input type="text" class="form-input" id="opt-2" placeholder="Opción C"/></div>
+        <div class="option-edit-row"><input type="radio" name="correct-opt" value="3"/><input type="text" class="form-input" id="opt-3" placeholder="Opción D"/></div>
+      </div>
+    </div>
+    <div class="form-field">
+      <label class="form-label">Puntos por acierto</label>
+      <input type="number" class="form-input" id="f-points" value="100" min="10" step="10" style="max-width:140px;"/>
+    </div>
+    <div class="form-field">
+      <label class="form-label">Dato curioso (aparece al responder)</label>
+      <textarea class="form-textarea" id="f-fact" placeholder="Dato interesante sobre esta respuesta..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-primary" onclick="saveQuestion()">Guardar</button>
+      <button class="btn-outline" onclick="closeModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- SAVE BANNER -->
+<div class="save-banner" id="save-banner">✓ Cambios guardados exitosamente</div>
+
+<!-- ADMIN ACCESS BUTTON (sutil, esquina inferior derecha) -->
+<button class="admin-access-btn" onclick="showScreen('screen-admin-login')" title="Administrador">⚙</button>
+
+<!-- ===== LEADERBOARD SCREEN ===== -->
+<div class="screen" id="screen-leaderboard">
+  <div class="lb-header">
+    <div class="wedding-date">Karina &amp; Sebastian · 2027</div>
+    <div class="lb-title">Tabla de Campeones</div>
+    <div class="ornament"><span>✦</span></div>
+    <div class="lb-subtitle">Puntuaciones más altas de la noche</div>
+  </div>
+
+  <div class="lb-list" id="lb-list"></div>
+
+  <button class="back-btn" onclick="goHome()">Volver al inicio</button>
+</div>
+
+<script>
+// =====================
+// PREGUNTAS
+// =====================
+const QUESTIONS = [
+  {
+    category: "Karina",
+    emoji: "💜",
+    question: "¿En qué área trabaja Karina en Ernst & Young (EY)?",
+    options: ["Auditoría Financiera","Auditoría de Tecnología (TI)","Consultoría de Estrategia","Recursos Humanos"],
+    correct: 1,
+    points: 100,
+    fact: "Karina es Auditora de Tecnología de la Información en EY — ¡revisa sistemas y controles IT de grandes empresas!"
+  },
+  {
+    category: "Sebastián",
+    emoji: "💙",
+    question: "¿Cuál es la principal área de trabajo de Sebastián?",
+    options: ["Diseño gráfico y UX","Ciencia de datos y programación","Marketing digital","Administración de empresas"],
+    correct: 1,
+    points: 100,
+    fact: "Sebastián trabaja en Ciencia de Datos — analiza información y construye modelos para tomar mejores decisiones."
+  },
+  {
+    category: "La Pareja",
+    emoji: "💛",
+    question: "¿En qué año se comprometieron Karina y Sebastián?",
+    options: ["2024","2026","2025","2023"],
+    correct: 2,
+    points: 100,
+    fact: "¡09 de Noviembre del 2025! Una fecha que nunca olvidaremos. 🎉"
+  },
+  {
+    category: "La Pareja",
+    emoji: "💛",
+    question: "Si Sebastián tiene que hacer una consulta de base de datos para buscar a Karina en el universo, ¿qué escribiría?",
+    options: [
+      "DELETE FROM vida WHERE amor IS NOT NULL",
+      "SELECT * FROM universo WHERE nombre='Karina' AND es_perfecta=TRUE",
+      "UPDATE relacion SET estado='soltero'",
+      "DROP TABLE sentimientos"
+    ],
+    correct: 1,
+    points: 200,
+    fact: "¡Query perfecta! Sebastián sabe exactamente cómo encontrar a Karina. 💻❤️"
+  },
+  {
+    category: "Sebastián",
+    emoji: "💙",
+    question: "¿Cuál es el color favorito de Sebas en ropa?",
+    options: ["Verde esperanza fiscal","Azul corporativo modo AUNA","Negro","Depende del KPI del día"],
+    correct: 2,
+    points: 100,
+    fact: "Dicen las malas lenguas que Sebas tiene más de 100 camisas negras en su clóset... y aún así siente que 'le falta una básica'."
+  },
+  {
+    category: "La Pareja",
+    emoji: "💙",
+    question: "¿Cómo se llaman las mascotas oficiales de la familia Ibarra Reyes?",
+    options: ["Rocky, Toby y Firulais","Milan, Max y Micko","Checo, Benito y Lando","Excel, Script y Canvas"],
+    correct: 0,
+    points: 100,
+    fact: "Son tan importantes que si Sebas hace una marca, proyecto o logo... seguro hay una 'M' escondida por ahí en su honor."
+  },
+  {
+    category: "Sebastián",
+    emoji: "💙",
+    question: "¿Cuál sería el plan ideal de luna de miel según Sebas?",
+    options: ["3 días en la playa y ya","9 días cruzando medio planeta incluyendo todos los Disney","Ir a donde Karina diga","Quedarse en casa viendo Netflix"],
+    correct: 2,
+    points: 100,
+    fact: "Pero no soy Mandilón 😄"
+  }
+];
+
+// MERCH CATALOG
+const MERCH = [
+  { pts: 50,  prize: "Sticker oficial K&S 💌" },
+  { pts: 100, prize: "Shot personalizado de la boda 🥂" },
+  { pts: 200, prize: "Llavero con la fecha K&S 🗝️" },
+  { pts: 350, prize: "Vaso de cristal grabado 🥃" },
+  { pts: 500, prize: "Tote bag oficial de la boda 👜" },
+  { pts: 700, prize: "Playera edición especial K&S 👕" },
+  { pts: 900, prize: "🍾 Botella firmada por los novios" },
+];
+
+// STATE
+let state = {
+  playerName: '',
+  currentQ: 0,
+  score: 0,
+  timer: null,
+  timeLeft: 15,
+  answered: false,
+};
+
+let leaderboard = []; // synced from Firebase
+
+// =====================
+// PARTICLES
+// =====================
+function createParticles() {
+  const container = document.getElementById('particles');
+  for (let i = 0; i < 18; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.width = p.style.height = (Math.random() * 2 + 1) + 'px';
+    p.style.setProperty('--drift', (Math.random() * 60 - 30) + 'px');
+    p.style.animationDuration = (Math.random() * 8 + 6) + 's';
+    p.style.animationDelay = (Math.random() * 8) + 's';
+    container.appendChild(p);
+  }
+}
+createParticles();
+
+// =====================
+// SCREENS
+// =====================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+// =====================
+// GAME
+// =====================
+function startGame() {
+  const nameInput = document.getElementById('player-name').value.trim();
+  if (!nameInput) {
+    document.getElementById('player-name').focus();
+    document.getElementById('player-name').style.borderBottomColor = '#e55';
+    setTimeout(() => document.getElementById('player-name').style.borderBottomColor = '', 1200);
+    return;
+  }
+  state.playerName = nameInput;
+  state.currentQ = 0;
+  state.score = 0;
+  state.answered = false;
+
+  document.getElementById('display-name').textContent = nameInput;
+  document.getElementById('current-score').textContent = '0';
+
+  showScreen('screen-quiz');
+  renderQuestion();
+}
+
+function renderQuestion() {
+  const q = QUESTIONS[state.currentQ];
+  const total = QUESTIONS.length;
+
+  // Counter & progress
+  document.getElementById('q-counter').textContent = `Pregunta ${state.currentQ + 1} de ${total}`;
+  document.getElementById('cat-label').textContent = q.category;
+  document.getElementById('progress-fill').style.width = ((state.currentQ / total) * 100) + '%';
+
+  // Category tag
+  document.getElementById('category-tag').textContent = q.emoji + ' ' + q.category;
+
+  // Question
+  document.getElementById('question-text').textContent = q.question;
+
+  // Options
+  const grid = document.getElementById('options-grid');
+  grid.innerHTML = '';
+  q.options.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'option-btn';
+    btn.textContent = opt;
+    btn.onclick = () => selectAnswer(i);
+    grid.appendChild(btn);
+  });
+
+  // Feedback hide
+  const fb = document.getElementById('feedback-box');
+  fb.style.display = 'none';
+  document.getElementById('next-btn').style.display = 'none';
+
+  state.answered = false;
+  startTimer();
+}
+
+function startTimer() {
+  clearInterval(state.timer);
+  state.timeLeft = 15;
+  const arc = document.getElementById('timer-arc');
+  const circumference = 175.9;
+
+  function update() {
+    document.getElementById('timer-text').textContent = state.timeLeft;
+    arc.style.strokeDashoffset = circumference * (1 - state.timeLeft / 15);
+    if (state.timeLeft <= 0) {
+      clearInterval(state.timer);
+      if (!state.answered) timeOut();
+    }
+    state.timeLeft--;
+  }
+  update();
+  state.timer = setInterval(update, 1000);
+}
+
+function timeOut() {
+  state.answered = true;
+  const qs = window.LIVE_QUESTIONS || QUESTIONS;
+  const q = qs[state.currentQ];
+  const btns = document.querySelectorAll('.option-btn');
+  btns.forEach((b, i) => {
+    b.disabled = true;
+    if (i === q.correct) b.classList.add('correct');
+  });
+  showFeedback(false, 0, '⏰ Tiempo agotado! ' + q.fact);
+  // Auto-avanza a la siguiente pregunta despues de 3 segundos
+  setTimeout(() => { window.nextQuestion(); }, 3000);
+}
+
+function selectAnswer(idx) {
+  if (state.answered) return;
+  state.answered = true;
+  clearInterval(state.timer);
+
+  const q = QUESTIONS[state.currentQ];
+  const btns = document.querySelectorAll('.option-btn');
+  btns.forEach(b => b.disabled = true);
+
+  const timeBonus = Math.floor(state.timeLeft * 5);
+  let earned = 0;
+  const isCorrect = idx === q.correct;
+
+  if (isCorrect) {
+    btns[idx].classList.add('correct');
+    earned = q.points + timeBonus;
+    state.score += earned;
+    document.getElementById('current-score').textContent = state.score;
+    showFeedback(true, earned, q.fact);
+  } else {
+    btns[idx].classList.add('wrong');
+    btns[q.correct].classList.add('correct');
+    showFeedback(false, 0, q.fact);
+  }
+
+  document.getElementById('next-btn').style.display = 'block';
+}
+
+function showFeedback(correct, pts, fact) {
+  const fb = document.getElementById('feedback-box');
+  fb.style.display = 'block';
+  if (correct) {
+    document.getElementById('feedback-pts').textContent = '+' + pts + ' puntos ✨';
+    fb.style.borderLeftColor = 'var(--gold)';
+  } else {
+    document.getElementById('feedback-pts').textContent = 'Sin puntos esta vez';
+    fb.style.borderLeftColor = '#884444';
+  }
+  document.getElementById('feedback-text').textContent = fact;
+}
+
+function nextQuestion() {
+  state.currentQ++;
+  if (state.currentQ >= QUESTIONS.length) {
+    endGame();
+  } else {
+    renderQuestion();
+    window.scrollTo(0, 0);
+  }
+}
+
+function endGame() {
+  clearInterval(state.timer);
+
+  // Save to leaderboard
+  leaderboard.push({ name: state.playerName, score: state.score });
+  leaderboard.sort((a, b) => b.score - a.score);
+  leaderboard = leaderboard.slice(0, 20);
+  localStorage.setItem('ks_lb', JSON.stringify(leaderboard));
+
+  // Show results
+  document.getElementById('final-score').textContent = state.score;
+
+  // Title
+  let title, subtitle;
+  if (state.score >= 900) { title = '¡Leyenda de la Boda! 🏆'; subtitle = 'Conoces a los novios mejor que ellos mismos. Mereces todo el merch.'; }
+  else if (state.score >= 600) { title = '¡Gran Conocedor! ⭐'; subtitle = 'Definitivamente has convivido mucho con Karina y Sebastián.'; }
+  else if (state.score >= 350) { title = '¡Buen Resultado! 🎉'; subtitle = 'Conoces bastante bien a la pareja. ¡Sigue disfrutando la noche!'; }
+  else { title = '¡Participaste! 💫'; subtitle = 'Lo importante es celebrar el amor de Karina y Sebastián esta noche.'; }
+
+  document.getElementById('result-title').textContent = title;
+  document.getElementById('result-subtitle').textContent = subtitle;
+
+  // Merch table
+  const tbody = document.getElementById('merch-body');
+  tbody.innerHTML = '';
+  MERCH.forEach(item => {
+    const unlocked = state.score >= item.pts;
+    const tr = document.createElement('tr');
+    if (unlocked) tr.className = 'unlocked';
+    tr.innerHTML = `
+      <td class="pts-col">${item.pts}</td>
+      <td>${item.prize}</td>
+      <td>${unlocked ? '<span class="check-icon">✓</span>' : '<span class="lock-icon">🔒</span>'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  showScreen('screen-results');
+}
+
+function restartGame() {
+  showScreen('screen-welcome');
+}
+
+function goHome() {
+  showScreen('screen-welcome');
+}
+
+// =====================
+// LEADERBOARD
+// =====================
+async function showLeaderboard() {
+  showScreen('screen-leaderboard');
+  const list = document.getElementById('lb-list');
+  list.innerHTML = `<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:40px 0;font-family:'Cormorant Garamond',serif;font-style:italic;">Cargando... ✨</div>`;
+
+  let entries = [];
+  if (window.fbGetLeaderboard) {
+    entries = await window.fbGetLeaderboard();
+  } else {
+    entries = leaderboard;
+  }
+
+  list.innerHTML = '';
+  if (entries.length === 0) {
+    list.innerHTML = `<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:40px 0;font-family:'Cormorant Garamond',serif;font-style:italic;">Aún nadie ha jugado.<br>¡Sé el primero!</div>`;
+  } else {
+    entries.slice(0, 10).forEach((entry, i) => {
+      const div = document.createElement('div');
+      div.className = 'lb-entry';
+      div.style.animationDelay = (i * 0.06) + 's';
+      div.innerHTML = `
+        <div class="lb-rank">${i + 1}</div>
+        <div class="lb-name">${entry.name}</div>
+        <div>
+          <div class="lb-pts">${entry.score}</div>
+          <span class="lb-pts-label">pts</span>
+        </div>
+      `;
+      list.appendChild(div);
+    });
+  }
+}
+
+// Enter key
+document.getElementById('player-name').addEventListener('keydown', e => {
+  if (e.key === 'Enter') startGame();
+});
+
+document.getElementById('admin-pass').addEventListener('keydown', e => {
+  if (e.key === 'Enter') adminLogin();
+});
+
+// =====================
+// LIVE DATA (uses localStorage so edits persist)
+// =====================
+function loadQuestions() {
+  const saved = localStorage.getItem('ks_questions');
+  if (saved) { try { return JSON.parse(saved); } catch(e) {} }
+  return QUESTIONS;
+}
+async function loadQuestionsAsync() {
+  if (window.fbGetQuestions) {
+    const fb = await window.fbGetQuestions();
+    if (fb) { localStorage.setItem('ks_questions', JSON.stringify(fb)); return fb; }
+  }
+  return loadQuestions();
+}
+function loadMerch() {
+  const saved = localStorage.getItem('ks_merch');
+  if (saved) { try { return JSON.parse(saved); } catch(e) {} }
+  return MERCH;
+}
+async function loadMerchAsync() {
+  if (window.fbGetMerch) {
+    const fb = await window.fbGetMerch();
+    if (fb) { localStorage.setItem('ks_merch', JSON.stringify(fb)); return fb; }
+  }
+  return loadMerch();
+}
+
+// Patch game to use live data
+window.startGame = async function() {
+  window.LIVE_QUESTIONS = await loadQuestionsAsync();
+  window.LIVE_MERCH = await loadMerchAsync();
+  const nameInput = document.getElementById('player-name').value.trim();
+  if (!nameInput) {
+    document.getElementById('player-name').focus();
+    document.getElementById('player-name').style.borderBottomColor = '#e55';
+    setTimeout(() => document.getElementById('player-name').style.borderBottomColor = '', 1200);
+    return;
+  }
+  state.playerName = nameInput;
+  state.currentQ = 0;
+  state.score = 0;
+  state.answered = false;
+  document.getElementById('display-name').textContent = nameInput;
+  document.getElementById('current-score').textContent = '0';
+  showScreen('screen-quiz');
+  renderQuestionLive();
+};
+
+function renderQuestionLive() {
+  const qs = window.LIVE_QUESTIONS || QUESTIONS;
+  const q = qs[state.currentQ];
+  const total = qs.length;
+  document.getElementById('q-counter').textContent = `Pregunta ${state.currentQ + 1} de ${total}`;
+  document.getElementById('cat-label').textContent = q.category;
+  document.getElementById('progress-fill').style.width = ((state.currentQ / total) * 100) + '%';
+  document.getElementById('category-tag').textContent = q.emoji + ' ' + q.category;
+  document.getElementById('question-text').textContent = q.question;
+  const grid = document.getElementById('options-grid');
+  grid.innerHTML = '';
+  q.options.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'option-btn';
+    btn.textContent = opt;
+    btn.onclick = () => selectAnswerLive(i);
+    grid.appendChild(btn);
+  });
+  document.getElementById('feedback-box').style.display = 'none';
+  document.getElementById('next-btn').style.display = 'none';
+  state.answered = false;
+  startTimer();
+}
+
+function selectAnswerLive(idx) {
+  if (state.answered) return;
+  state.answered = true;
+  clearInterval(state.timer);
+  const qs = window.LIVE_QUESTIONS || QUESTIONS;
+  const q = qs[state.currentQ];
+  const btns = document.querySelectorAll('.option-btn');
+  btns.forEach(b => b.disabled = true);
+  const timeBonus = Math.floor(state.timeLeft * 5);
+  const isCorrect = idx === q.correct;
+  if (isCorrect) {
+    btns[idx].classList.add('correct');
+    const earned = q.points + timeBonus;
+    state.score += earned;
+    document.getElementById('current-score').textContent = state.score;
+    showFeedback(true, earned, q.fact);
+  } else {
+    btns[idx].classList.add('wrong');
+    btns[q.correct].classList.add('correct');
+    showFeedback(false, 0, q.fact);
+  }
+  document.getElementById('next-btn').style.display = 'block';
+}
+
+window.nextQuestion = function() {
+  const qs = window.LIVE_QUESTIONS || QUESTIONS;
+  state.currentQ++;
+  if (state.currentQ >= qs.length) { endGameLive(); }
+  else { renderQuestionLive(); window.scrollTo(0,0); }
+};
+
+async function endGameLive() {
+  clearInterval(state.timer);
+  // Save to Firebase (centralized)
+  if (window.fbSaveScore) {
+    await window.fbSaveScore(state.playerName, state.score);
+  }
+  // Also keep local copy
+  leaderboard.push({ name: state.playerName, score: state.score });
+  leaderboard.sort((a, b) => b.score - a.score);
+  leaderboard = leaderboard.slice(0, 20);
+  localStorage.setItem('ks_lb', JSON.stringify(leaderboard));
+  document.getElementById('final-score').textContent = state.score;
+  let title, subtitle;
+  if (state.score >= 900) { title = '¡Leyenda de la Boda! 🏆'; subtitle = 'Conoces a los novios mejor que ellos mismos.'; }
+  else if (state.score >= 600) { title = '¡Gran Conocedor! ⭐'; subtitle = 'Definitivamente has convivido mucho con Karina y Sebastián.'; }
+  else if (state.score >= 350) { title = '¡Buen Resultado! 🎉'; subtitle = 'Conoces bastante bien a la pareja.'; }
+  else { title = '¡Participaste! 💫'; subtitle = 'Lo importante es celebrar el amor de Karina y Sebastián.'; }
+  document.getElementById('result-title').textContent = title;
+  document.getElementById('result-subtitle').textContent = subtitle;
+  const ms = window.LIVE_MERCH || MERCH;
+  const tbody = document.getElementById('merch-body');
+  tbody.innerHTML = '';
+  ms.forEach(item => {
+    const unlocked = state.score >= item.pts;
+    const tr = document.createElement('tr');
+    if (unlocked) tr.className = 'unlocked';
+    tr.innerHTML = `<td class="pts-col">${item.pts}</td><td>${item.prize}</td><td>${unlocked ? '<span class="check-icon">✓</span>' : '<span class="lock-icon">🔒</span>'}</td>`;
+    tbody.appendChild(tr);
+  });
+  showScreen('screen-results');
+}
+
+// =====================
+// ADMIN AUTH
+// =====================
+const ADMIN_USER = 'ADMIN';
+const ADMIN_PASS = 'Milan22';
+
+function adminLogin() {
+  const u = document.getElementById('admin-user').value.trim();
+  const p = document.getElementById('admin-pass').value;
+  const err = document.getElementById('login-error');
+  if (u === ADMIN_USER && p === ADMIN_PASS) {
+    err.style.display = 'none';
+    document.getElementById('admin-user').value = '';
+    document.getElementById('admin-pass').value = '';
+    openAdminPanel();
+  } else {
+    err.style.display = 'block';
+    document.getElementById('admin-pass').value = '';
+    document.getElementById('admin-pass').focus();
+  }
+}
+function adminLogout() { goHome(); }
+function openAdminPanel() {
+  renderQuestionsAdmin();
+  renderMerchAdmin();
+  renderRankingAdmin();
+  showScreen('screen-admin');
+}
+
+// =====================
+// ADMIN TABS
+// =====================
+function switchTab(tabId, btnId) {
+  document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.admin-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  document.getElementById(btnId).classList.add('active');
+}
+
+// =====================
+// QUESTIONS ADMIN
+// =====================
+let editingIndex = -1;
+let liveQuestions = [];
+let liveMerch = [];
+
+function renderQuestionsAdmin() {
+  liveQuestions = loadQuestions();
+  const container = document.getElementById('questions-list');
+  container.innerHTML = '';
+  liveQuestions.forEach((q, i) => {
+    const card = document.createElement('div');
+    card.className = 'q-card';
+    card.innerHTML = `
+      <div class="q-card-header">
+        <div class="q-card-num">${i + 1}</div>
+        <div class="q-card-actions">
+          <button class="btn-edit" onclick="openQuestionModal(${i})">Editar</button>
+          <button class="btn-delete" onclick="deleteQuestion(${i})">Eliminar</button>
+        </div>
+      </div>
+      <div class="q-preview-text">${q.question}</div>
+      <div class="q-preview-meta">${q.emoji} <span>${q.category}</span> &nbsp;·&nbsp; <span>${q.points} pts</span></div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function openQuestionModal(index) {
+  editingIndex = index;
+  liveQuestions = loadQuestions();
+  document.getElementById('modal-title').textContent = index === -1 ? 'Nueva Pregunta' : 'Editar Pregunta';
+  if (index === -1) {
+    document.getElementById('f-category').value = '';
+    document.getElementById('f-emoji').value = '';
+    document.getElementById('f-question').value = '';
+    document.getElementById('f-points').value = '100';
+    document.getElementById('f-fact').value = '';
+    for (let i = 0; i < 4; i++) document.getElementById('opt-' + i).value = '';
+    document.querySelector('input[name="correct-opt"][value="0"]').checked = true;
+  } else {
+    const q = liveQuestions[index];
+    document.getElementById('f-category').value = q.category;
+    document.getElementById('f-emoji').value = q.emoji;
+    document.getElementById('f-question').value = q.question;
+    document.getElementById('f-points').value = q.points;
+    document.getElementById('f-fact').value = q.fact;
+    for (let i = 0; i < 4; i++) document.getElementById('opt-' + i).value = q.options[i] || '';
+    document.querySelector(`input[name="correct-opt"][value="${q.correct}"]`).checked = true;
+  }
+  document.getElementById('question-modal').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('question-modal').classList.remove('active');
+}
+
+function saveQuestion() {
+  const category = document.getElementById('f-category').value.trim();
+  const emoji = document.getElementById('f-emoji').value.trim() || '❓';
+  const question = document.getElementById('f-question').value.trim();
+  const points = parseInt(document.getElementById('f-points').value) || 100;
+  const fact = document.getElementById('f-fact').value.trim();
+  const options = [0,1,2,3].map(i => document.getElementById('opt-' + i).value.trim()).filter(o => o);
+  const correct = parseInt(document.querySelector('input[name="correct-opt"]:checked').value);
+  if (!category || !question || options.length < 2) {
+    alert('Completa: categoría, pregunta y al menos 2 opciones.'); return;
+  }
+  const newQ = { category, emoji, question, options, correct, points, fact };
+  liveQuestions = loadQuestions();
+  if (editingIndex === -1) { liveQuestions.push(newQ); }
+  else { liveQuestions[editingIndex] = newQ; }
+  localStorage.setItem('ks_questions', JSON.stringify(liveQuestions));
+  if (window.fbSaveQuestions) window.fbSaveQuestions(liveQuestions);
+  closeModal();
+  renderQuestionsAdmin();
+  showSaveBanner();
+}
+
+function deleteQuestion(index) {
+  if (!confirm('¿Eliminar esta pregunta?')) return;
+  liveQuestions = loadQuestions();
+  liveQuestions.splice(index, 1);
+  localStorage.setItem('ks_questions', JSON.stringify(liveQuestions));
+  if (window.fbSaveQuestions) window.fbSaveQuestions(liveQuestions);
+  renderQuestionsAdmin();
+  showSaveBanner();
+}
+
+// =====================
+// MERCH ADMIN
+// =====================
+function renderMerchAdmin() {
+  liveMerch = loadMerch();
+  const container = document.getElementById('merch-edit-list');
+  container.innerHTML = '';
+  liveMerch.forEach((item, i) => {
+    const row = document.createElement('div');
+    row.className = 'merch-edit-card';
+    row.innerHTML = `
+      <input type="number" class="merch-pts-input" id="merch-pts-${i}" value="${item.pts}" min="0" step="10"/>
+      <span style="font-size:9px;color:var(--text-muted);letter-spacing:1px;flex-shrink:0;">pts</span>
+      <input type="text" class="merch-prize-input" id="merch-prize-${i}" value="${item.prize}" placeholder="Nombre del premio"/>
+      <button class="btn-merch-delete" onclick="deleteMerchRow(${i})">✕</button>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function addMerchRow() {
+  liveMerch = loadMerch();
+  liveMerch.push({ pts: 100, prize: 'Nuevo premio 🎁' });
+  renderMerchAdmin();
+  setTimeout(() => {
+    const last = document.getElementById('merch-prize-' + (liveMerch.length - 1));
+    if (last) { last.focus(); last.select(); }
+  }, 50);
+}
+
+function deleteMerchRow(index) {
+  liveMerch = loadMerch();
+  liveMerch.splice(index, 1);
+  localStorage.setItem('ks_merch', JSON.stringify(liveMerch));
+  renderMerchAdmin();
+}
+
+function saveMerch() {
+  liveMerch = loadMerch();
+  const updated = [];
+  for (let i = 0; i < liveMerch.length; i++) {
+    const pts = parseInt(document.getElementById('merch-pts-' + i)?.value) || 0;
+    const prize = document.getElementById('merch-prize-' + i)?.value.trim() || '';
+    if (prize) updated.push({ pts, prize });
+  }
+  updated.sort((a, b) => a.pts - b.pts);
+  liveMerch = updated;
+  localStorage.setItem('ks_merch', JSON.stringify(liveMerch));
+  if (window.fbSaveMerch) window.fbSaveMerch(liveMerch);
+  renderMerchAdmin();
+  showSaveBanner();
+}
+
+// =====================
+// RANKING ADMIN
+// =====================
+async function renderRankingAdmin() {
+  const container = document.getElementById('admin-lb-list');
+  container.innerHTML = `<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:20px 0;">Cargando ranking... ✨</div>`;
+  let lb = [];
+  if (window.fbGetLeaderboard) {
+    lb = await window.fbGetLeaderboard();
+  } else {
+    lb = JSON.parse(localStorage.getItem('ks_lb') || '[]');
+  }
+  container.innerHTML = '';
+  if (lb.length === 0) {
+    container.innerHTML = `<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:40px 0;font-family:'Cormorant Garamond',serif;font-style:italic;">Nadie ha jugado todavía.</div>`;
+    return;
+  }
+  lb.forEach((entry, i) => {
+    const div = document.createElement('div');
+    div.className = 'lb-entry';
+    div.innerHTML = `<div class="lb-rank">${i+1}</div><div class="lb-name">${entry.name}</div><div><div class="lb-pts">${entry.score}</div><span class="lb-pts-label">pts</span></div>`;
+    container.appendChild(div);
+  });
+}
+
+async function clearLeaderboard() {
+  if (!confirm('¿Borrar TODOS los puntajes de Firebase? No se puede deshacer.')) return;
+  if (window.fbClearLeaderboard) await window.fbClearLeaderboard();
+  localStorage.removeItem('ks_lb');
+  leaderboard = [];
+  await renderRankingAdmin();
+  showSaveBanner();
+}
+
+// =====================
+// SAVE BANNER
+// =====================
+function showSaveBanner() {
+  const b = document.getElementById('save-banner');
+  b.classList.add('show');
+  setTimeout(() => b.classList.remove('show'), 2500);
+}
+
+// Close modal clicking outside
+document.getElementById('question-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+</script>
+</body>
+</html>
